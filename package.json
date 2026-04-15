@@ -1,0 +1,16 @@
+{
+  "name": "demo-nodejs-server",
+  "version": "1.0.0",
+  "description": "Demo server tích hợp CShield SDK",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cshield-sdk": "file:./vendor/cshield-sdk-1.0.0.tgz",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1"
+  }
+}

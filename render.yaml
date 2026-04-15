@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: demo-nodejs-server
+    runtime: node
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: CSHIELD_PRIVATE_KEY
+        sync: false
+      - key: CSHIELD_PUBLIC_KEY
+        sync: false
