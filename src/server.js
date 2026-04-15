@@ -46,6 +46,7 @@ const shield = new CShield({
    3. API không cần verify / sign
 ===================================================== */
 app.get("/test", (req, res) => {
+  console.log(`[${new Date().toISOString()}] GET /test called`);
   res.json({ success: true, message: "Hello World" });
 });
 
