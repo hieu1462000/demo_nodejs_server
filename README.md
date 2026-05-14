@@ -62,9 +62,9 @@ import { CShield, DefaultRequestVerifier, DefaultResponseSigner, DefaultPrivateK
 
 **Encode private key sang base64:**
 ```bash
-base64 -w 0 private.pem
+base64 -w 0 path/to/private.pem
 # Hoặc trên macOS:
-base64 -i private.pem | tr -d '\n'
+base64 -i path/to/private.pem | tr -d '\n'
 ```
 
 File `.env` mẫu:
@@ -123,12 +123,12 @@ interface LicenseConfig {
 
 | Trường | Mô tả |
 |--------|--------|
-| `licenseKey` | JWT được cấp bởi CShield license server. Chứa claims: `exp`, `nbf`, `iat`, `jti`, `ios`, `android`, `type`, `tier`, `devices`, `grace_hours` |
-| `gracePath` | File lưu trạng thái offline grace period. Được Rust đọc/ghi, JS không can thiệp |
-| `appId` | Bundle ID được nhúng trong JWT — Rust validate khớp với giá trị này |
+| `licenseKey` | JWT được cấp bởi CShield license server. |
+| `gracePath` | File lưu trạng thái offline grace period. |
+| `appId` | Package name, Bundle ID được nhúng trong JWT |
 | `onStatusChange` | Gọi khi Rust chuyển trạng thái license: `VALID` → `GRACE_PERIOD` → `EXPIRED` → `REVOKED` |
 | `onRenew` | Gọi khi server trả về JWT mới. **Phải lưu token mới** để dùng cho lần khởi động tiếp theo |
-| `maxGraceBoots` | Giới hạn số lần server restart trong khi offline. Bảo vệ khỏi lạm dụng grace period |
+| `maxGraceBoots` | Số lần boot tối đa trong grace period. Default: 999999 |
 
 ---
 
