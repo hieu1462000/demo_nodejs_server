@@ -5,8 +5,8 @@ const {
   CShield,
   DefaultRequestVerifier,
   DefaultResponseSigner,
-  DefaultPublicKeyProvider,
   DefaultPrivateKeyProvider,
+  DefaultErrorWriter,
 } = require("cshield-sdk");
 
 const app = express();
@@ -97,7 +97,7 @@ async function startServer() {
   /* =====================================================
      5. Error handler (phải đặt cuối cùng)
   ===================================================== */
-  app.use(cshield.errorHandler());
+  app.use(cshield.errorHandler(new DefaultErrorWriter(responseSigner)));
 
   /* =====================================================
     6. Graceful shutdown

@@ -197,7 +197,7 @@ app.post('/api/endpoint',
 Error handler toàn cục — **phải đặt SAU TẤT CẢ routes**.
 
 ```js
-app.use(cshield.errorHandler());
+app.use(cshield.errorHandler(new DefaultErrorWriter(responseSigner)));
 // Hoặc với custom error writer:
 app.use(cshield.errorHandler(customErrorWriter));
 ```
