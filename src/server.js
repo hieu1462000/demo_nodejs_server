@@ -6,24 +6,26 @@ const {
   DefaultRequestVerifier,
   DefaultResponseSigner,
   DefaultPrivateKeyProvider,
-  DefaultErrorWriter,
-} = require("cshield-sdk");
+  CShieldEnvironment,
+  captureRawBody,
+} = require("nodejs-c-shield-sdk");
 
 const app = express();
-app.use(express.json());
+// verify: captureRawBody BẮT BUỘC — SDK hash RAW BYTES của body trên dây (không phải
+// JSON.stringify(req.body) dựng lại). Thiếu dòng này mọi route JSON verify sẽ 500
+// CSHIELD_MISCONFIGURED.
+app.use(express.json({ verify: captureRawBody }));
 
 /* =====================================================
-   1. Đọc key từ env var (base64-encoded PEM)
-   Encode: base64 -w 0 private.pem
-   Decode tự động tại runtime
+   1. Private key KÝ RESPONSE (base64-encoded PEM)
+   Encode: base64 -w 0 private.pem  (decode tự động tại runtime)
+
+   KHÔNG cần public key: verify REQUEST dùng chữ ký THIẾT BỊ (ECDSA P-256, hardware-backed).
+   Public key thiết bị + trustLevel rút từ access token ES256 trong header cs-proof, verify
+   OFFLINE qua JWKS của realm (khai ở §2). SDK chạy THUẦN ES256 — không fallback.
 ===================================================== */
 if (!process.env.CSHIELD_PRIVATE_KEY) {
-  console.error("Missing env vars: CSHIELD_PRIVATE_KEY");
-  process.exit(1);
-}
-
-if (!process.env.CSHIELD_LICENSE_KEY) {
-  console.error("Missing env var: CSHIELD_LICENSE_KEY (raw license JWT string)");
+  console.error("Missing env var: CSHIELD_PRIVATE_KEY");
   process.exit(1);
 }
 
@@ -33,8 +35,38 @@ const privateKey = Buffer.from(
 ).toString("utf8");
 
 const privateKeyProvider = new DefaultPrivateKeyProvider(privateKey);
+
+/* =====================================================
+   2. Khởi tạo CShield
+   realm = định danh CHÍNH server này (customerCode:applicationId:environment) — BẮT BUỘC, server
+   tự pin, KHÔNG lấy từ token client. Dùng để verify access token ES256 offline qua JWKS + bắt
+   aud == tenant:<realm>. customerCode/applicationId truyền NGUYÊN như trong license (app sample
+   embedded: CMCCS / cshield-embedded-sample); environment = DEV. SDK tự hạ chữ thường.
+
+   => realm hiệu dụng: cmccs:cshield-embedded-sample:dev
+      aud kỳ vọng:    tenant:cmccs:cshield-embedded-sample:dev
+===================================================== */
+const requestVerifier = new DefaultRequestVerifier({
+  realm: {
+    customerCode: process.env.CSHIELD_CUSTOMER_CODE || "CMCCS",
+    applicationId: process.env.CSHIELD_APPLICATION_ID || "cshield-embedded-sample",
+    environment: CShieldEnvironment.DEV,
+  },
+  // Tùy chọn: trỏ JWKS sang BE đã phát hành token dev (mặc định = URL cloud bake lúc build gói SDK).
+  ...(process.env.CSHIELD_JWKS_BASE_URL ? { jwksBaseUrl: process.env.CSHIELD_JWKS_BASE_URL } : {}),
+});
+
 const responseSigner = new DefaultResponseSigner(privateKeyProvider);
-const requestVerifier = new DefaultRequestVerifier();
+
+const shield = new CShield({
+  requestVerifier,
+  responseSigner,
+  // Cửa sổ chống replay (giây) cho timestamp trong cs-proof. Mặc định 30 nếu bỏ qua.
+  requestTimeoutSeconds: 60,
+  // Ngưỡng trustLevel tối thiểu của thiết bị (L1..L5, mặc định "L1"). Thiết bị dưới ngưỡng ->
+  // 403 CSHIELD_DEVICE_NOT_ALLOWED. Chỉnh theo route qua shield.middlewares({ minTrustLevel }).
+  ...(process.env.CSHIELD_MIN_TRUST_LEVEL ? { minTrustLevel: process.env.CSHIELD_MIN_TRUST_LEVEL } : {}),
+});
 
 /* =====================================================
    3. API không cần verify / sign
@@ -44,87 +76,54 @@ app.get("/test", (req, res) => {
   res.json({ success: true, message: "Hello World" });
 });
 
-
-async function startServer() {
-  let cshield;
+/* =====================================================
+   4. API verify request + sign response
+===================================================== */
+app.post("/verify-otp", ...shield.middlewares(), (req, res, next) => {
   try {
-    cshield = await CShield.create({
-      license: {
-        licenseKey: process.env.CSHIELD_LICENSE_KEY,
-        gracePath: "./.cshield.grace",
-        appId: { ios: "com.cmc.CShieldExampleApp", android: "com.example.c_shield_sample_app" },
-        onStatusChange: (status) => {
-          console.log(`[CShield] License status changed: ${status}`);
-        },
-        onRenew: async (newToken) => {
-          console.log("[CShield] License renewed, new token persisted.");
-          //TODO: save new token
-        },
-      },
-    });
+    const { otp } = req.body;
+
+    if (otp !== "123456") {
+      res.json({
+        success: false,
+        code: "INVALID_OTP",
+        message: "Xac thuc OTP khong thanh cong",
+      });
+    } else {
+      res.json({
+        success: true,
+        code: "OK",
+        message: "Xac thuc OTP thanh cong",
+      });
+    }
   } catch (err) {
-    console.error("[CShield] License validation failed:", err.message);
-    process.exit(1);
+    next(err);
   }
-  /* =====================================================
-     4. API verify request + sign response
-  ===================================================== */
-  app.post("/verify-otp",
-    cshield.verifyMiddleware(requestVerifier),
-    cshield.signMiddleware(responseSigner),
-    (req, res, next) => {
-      try {
-        const { otp } = req.body;
+});
 
-        if (otp !== "123456") {
-          res.json({
-            success: false,
-            code: "INVALID_OTP",
-            message: "Xac thuc OTP khong thanh cong",
-          });
-        } else {
-          res.json({
-            success: true,
-            code: "OK",
-            message: "Xac thuc OTP thanh cong",
-          });
-        }
-      } catch (err) {
-        next(err);
-      }
-    });
+/* =====================================================
+   5. Error handler (phải đặt cuối cùng)
+===================================================== */
+app.use(shield.errorHandler());
 
-  /* =====================================================
-     5. Error handler (phải đặt cuối cùng)
-  ===================================================== */
-  app.use(cshield.errorHandler(new DefaultErrorWriter(responseSigner)));
+/* =====================================================
+   6. Graceful shutdown
+===================================================== */
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down...");
+  process.exit(0);
+});
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down...");
+  process.exit(0);
+});
 
-  /* =====================================================
-    6. Graceful shutdown
-  ===================================================== */
-  process.on("SIGTERM", () => {
-    console.log("[CShield] SIGTERM received, shutting down...");
-    cshield.shutdown();
-    process.exit(0);
-  });
-  process.on("SIGINT", () => {
-    console.log("[CShield] SIGINT received, shutting down...");
-    cshield.shutdown();
-    process.exit(0);
-  });
+/* =====================================================
+   7. Start server
+===================================================== */
+const PORT = process.env.PORT || 8080;
+const HOST = process.env.HOST || "0.0.0.0";
 
-  /* =====================================================
-     7. Start server
-  ===================================================== */
-  const PORT = process.env.PORT || 8080;
-  const HOST = process.env.HOST || "0.0.0.0";
-
-  app.listen(PORT, HOST, () => {
-    console.log(`Server running at http://${HOST}:${PORT}`);
-  });
-}
-
-startServer().catch((err) => {
-  console.error("Fatal startup error:", err);
-  process.exit(1);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running at http://${HOST}:${PORT}`);
 });
