@@ -50,7 +50,7 @@ const requestVerifier = new DefaultRequestVerifier({
   realm: {
     customerCode: process.env.CSHIELD_CUSTOMER_CODE || "CMCCS",
     applicationId: process.env.CSHIELD_APPLICATION_ID || "cshield-embedded-sample",
-    environment: CShieldEnvironment.DEV,
+    environment: CShieldEnvironment.PROD,
   },
   // Tùy chọn: trỏ JWKS sang BE đã phát hành token dev (mặc định = URL cloud bake lúc build gói SDK).
   ...(process.env.CSHIELD_JWKS_BASE_URL ? { jwksBaseUrl: process.env.CSHIELD_JWKS_BASE_URL } : {}),
