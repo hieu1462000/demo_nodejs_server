@@ -52,8 +52,7 @@ const requestVerifier = new DefaultRequestVerifier({
     applicationId: process.env.CSHIELD_APPLICATION_ID || "cshield-embedded-sample",
     environment: CShieldEnvironment.DEV,
   },
-  // Tùy chọn: trỏ JWKS sang BE đã phát hành token dev (mặc định = URL cloud bake lúc build gói SDK).
-  ...(process.env.CSHIELD_JWKS_BASE_URL ? { jwksBaseUrl: process.env.CSHIELD_JWKS_BASE_URL } : {}),
+  // Gốc URL JWKS KHÔNG cấu hình được — bake trong gói SDK (pack:uat/pack:prod). Xem SDK README §1.1.
 });
 
 const responseSigner = new DefaultResponseSigner(privateKeyProvider);

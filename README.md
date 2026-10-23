@@ -36,7 +36,6 @@ npm start            # http://0.0.0.0:8080
 | `CSHIELD_PRIVATE_KEY` | ✅ | Private key RSA **ký response**, base64-encoded PEM (`base64 -w 0 private.pem`) |
 | `CSHIELD_CUSTOMER_CODE` | — | Mã khách (mặc định `CMCCS`) — truyền nguyên như license |
 | `CSHIELD_APPLICATION_ID` | — | Định danh app (mặc định `cshield-embedded-sample`) — truyền nguyên như license |
-| `CSHIELD_JWKS_BASE_URL` | — | Gốc URL JWKS (BE phát hành token DEV). Bỏ trống → URL bake sẵn trong gói SDK |
 | `CSHIELD_MIN_TRUST_LEVEL` | — | Ngưỡng trust tối thiểu `L1..L5` (mặc định `L1`) |
 | `PORT` | — | Cổng (mặc định `8080`) |
 
