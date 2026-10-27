@@ -101,6 +101,29 @@ app.post("/verify-otp", ...shield.middlewares(), (req, res, next) => {
 });
 
 /* =====================================================
+   4b. Route demo cho trust nâng cao (để test client ensureTrust / requireFresh)
+   - /payment  : đòi trust >= L4 → client phải CShieldSDK.ensureTrust(L4) (upgrade Play Integrity)
+       trước khi gọi, nếu không sẽ 403 CSHIELD_DEVICE_NOT_ALLOWED.
+   - /transfer : đòi L4 + attestation TƯƠI trong 5 phút (maxTrustAgeSeconds) → client phải
+       ensureTrust(L4, requireFresh=true); trust cũ/thiếu `fresh` → 403 CSHIELD_TRUST_NOT_FRESH.
+   Override theo env nếu cần: CSHIELD_SENSITIVE_MIN_TRUST / CSHIELD_SENSITIVE_MAX_AGE.
+===================================================== */
+const SENSITIVE_MIN_TRUST = process.env.CSHIELD_SENSITIVE_MIN_TRUST || "L4";
+const SENSITIVE_MAX_AGE = Number(process.env.CSHIELD_SENSITIVE_MAX_AGE || 300);
+
+app.post("/payment", ...shield.middlewares({ minTrustLevel: SENSITIVE_MIN_TRUST }), (req, res) => {
+  res.json({ success: true, code: "OK", message: "Payment authorized (trust >= L4)" });
+});
+
+app.post(
+  "/transfer",
+  ...shield.middlewares({ minTrustLevel: SENSITIVE_MIN_TRUST, maxTrustAgeSeconds: SENSITIVE_MAX_AGE }),
+  (req, res) => {
+    res.json({ success: true, code: "OK", message: "Transfer authorized (fresh L4)" });
+  }
+);
+
+/* =====================================================
    5. Error handler (phải đặt cuối cùng)
 ===================================================== */
 app.use(shield.errorHandler());
