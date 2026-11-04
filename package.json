@@ -11,6 +11,6 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
-    "nodejs-c-shield-sdk": "file:vendor/nodejs-c-shield-sdk-2.1.0.tgz"
+    "nodejs-c-shield-sdk": "file:vendor/nodejs-c-shield-sdk-2.1.1.tgz"
   }
 }
