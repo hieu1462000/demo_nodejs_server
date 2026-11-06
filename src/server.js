@@ -41,16 +41,26 @@ const privateKeyProvider = new DefaultPrivateKeyProvider(privateKey);
    realm = định danh CHÍNH server này (customerCode:applicationId:environment) — BẮT BUỘC, server
    tự pin, KHÔNG lấy từ token client. Dùng để verify access token ES256 offline qua JWKS + bắt
    aud == tenant:<realm>. customerCode/applicationId truyền NGUYÊN như trong license (app sample
-   embedded: CMCCS / cshield-embedded-sample); environment = DEV. SDK tự hạ chữ thường.
+   embedded: CMCCS / cshield-embedded-sample); environment từ CSHIELD_ENVIRONMENT (mặc định DEV). SDK
+   tự hạ chữ thường.
 
-   => realm hiệu dụng: cmccs:cshield-embedded-sample:dev
-      aud kỳ vọng:    tenant:cmccs:cshield-embedded-sample:dev
+   => realm hiệu dụng: cmccs:cshield-embedded-sample:<env>  (vd :dev)
+      aud kỳ vọng:    tenant:cmccs:cshield-embedded-sample:<env>
 ===================================================== */
+
+// environment đọc từ env CSHIELD_ENVIRONMENT (DEV/STAGING/PROD, không phân biệt hoa/thường). Không
+// set hoặc giá trị lạ → mặc định DEV. Đặt PROD để test realm prod (PHẢI khớp env inject phía client
+// + policy apple_environment=production bên BE cho realm đó).
+const resolveEnvironment = () => {
+  const raw = (process.env.CSHIELD_ENVIRONMENT || "").trim().toUpperCase();
+  return Object.values(CShieldEnvironment).includes(raw) ? raw : CShieldEnvironment.DEV;
+};
+
 const requestVerifier = new DefaultRequestVerifier({
   realm: {
     customerCode: process.env.CSHIELD_CUSTOMER_CODE || "CMCCS",
     applicationId: process.env.CSHIELD_APPLICATION_ID || "cshield-embedded-sample",
-    environment: CShieldEnvironment.DEV,
+    environment: resolveEnvironment(),
   },
   // Gốc URL JWKS KHÔNG cấu hình được — bake trong gói SDK (pack:uat/pack:prod). Xem SDK README §1.1.
 });
