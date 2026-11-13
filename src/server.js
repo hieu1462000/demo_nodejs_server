@@ -86,6 +86,60 @@ app.get("/test", (req, res) => {
 });
 
 /* =====================================================
+   3b. [DEBUG TẠM] Soi cấu hình JWKS thực tế của bản ĐANG DEPLOY — KHÔNG bảo vệ, mở bằng browser:
+       https://<service>.onrender.com/debug/cshield
+   Dùng để biết server verify token bằng domain nào (prod mshield vs uat c-shield-license) khi gặp
+   401 CSHIELD_INVALID_ACCESS_TOKEN. XOÁ route này sau khi chẩn đoán xong.
+       - envLicenseBaseUrl : giá trị env CSHIELD_LICENSE_BASE_URL (phải rỗng/null để dùng default)
+       - bakedLicenseBaseUrl: URL bake trong gói SDK đang cài (bản prod phải là mshield.cmc.vn; nếu ra
+         c-shield-license nghĩa là Render còn cache node_modules uat cũ)
+       - effectiveBaseUrl  : URL server THỰC SỰ dùng = env?.trim() || baked
+       - jwksKids          : kid lấy từ JWKS theo effectiveBaseUrl → phải chứa kid của token client
+===================================================== */
+app.get("/debug/cshield", async (req, res) => {
+  let bakedLicenseBaseUrl = "(unknown)";
+  try {
+    bakedLicenseBaseUrl = require("nodejs-c-shield-sdk/dist/internal/device_key/licenseBaseUrl")
+      .LICENSE_BASE_URL;
+  } catch (e) {
+    bakedLicenseBaseUrl = "(require failed: " + e.message + ")";
+  }
+
+  const envLicenseBaseUrl = process.env.CSHIELD_LICENSE_BASE_URL ?? null;
+  const effectiveBaseUrl =
+    (envLicenseBaseUrl && envLicenseBaseUrl.trim()) || bakedLicenseBaseUrl;
+
+  const realm = `${process.env.CSHIELD_CUSTOMER_CODE || "CMCCS"}:${
+    process.env.CSHIELD_APPLICATION_ID || "cshield-embedded-sample"
+  }:${resolveEnvironment()}`.toLowerCase();
+  const jwksUrl = `${effectiveBaseUrl}/api-server/v2/${realm}/.well-known/jwks.json`;
+
+  let jwksKids = null;
+  let jwksError = null;
+  try {
+    const r = await fetch(jwksUrl);
+    if (!r.ok) {
+      jwksError = `HTTP ${r.status}`;
+    } else {
+      const j = await r.json();
+      jwksKids = (j.keys || []).map((k) => k.kid);
+    }
+  } catch (e) {
+    jwksError = String(e);
+  }
+
+  res.json({
+    envLicenseBaseUrl,
+    bakedLicenseBaseUrl,
+    effectiveBaseUrl,
+    realm,
+    jwksUrl,
+    jwksKids,
+    jwksError,
+  });
+});
+
+/* =====================================================
    4. API verify request + sign response
 ===================================================== */
 app.post("/verify-otp", ...shield.middlewares(), (req, res, next) => {
